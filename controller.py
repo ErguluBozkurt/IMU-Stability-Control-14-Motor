@@ -19,80 +19,59 @@ class PIDController:
         self.prev_error = error
         return output
 
-# GPIO ve PWM Ayarları
+# GPIO ve Servo Ayarları
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(14, GPIO.OUT)  # Servo 1 PWM sinyali
+GPIO.setup(15, GPIO.OUT)  # Servo 2 PWM sinyali
 
-# Sağdaki motorlar için PWM pinleri
-motor_pwm_right = [14, 15, 18, 23, 24, 25, 8]  # Sağda 7 motor için pinler
+# 50 Hz PWM frekansı ile servoları başlat
+pwm_servo1 = GPIO.PWM(14, 50)
+pwm_servo2 = GPIO.PWM(15, 50)
 
-# Soldaki motorlar için PWM pinleri
-motor_pwm_left = [7, 9, 10, 11, 12, 13, 16]  # Solda 7 motor için pinler
+pwm_servo1.start(0)
+pwm_servo2.start(0)
 
-# Motorlar için PWM nesneleri
-pwm_motor_right = [GPIO.PWM(pin, 50) for pin in motor_pwm_right]
-pwm_motor_left = [GPIO.PWM(pin, 50) for pin in motor_pwm_left]
+# PID parametreleri (sadece pitch için). Deneme yanılma ile değiştirilecek.
+pid_pitch = PIDController(kp=1.5, ki=0.03, kd=0.08)
 
-# PWM motorları başlat
-for pwm in pwm_motor_right + pwm_motor_left:
-    pwm.start(5)  # Minimum sinyal (duty cycle = 5)
+# Hedef pitch açısı (dengede kalmak için 0 derece)
+target_pitch = 0.0
 
-# PID parametreleri (sadece roll için). Deneme yanılma ile değiştirilecek.
-pid_roll = PIDController(kp=1.3, ki=0.001, kd=0.01)
-
-# Hedef roll açısı (dengede kalmak için 0 derece)
-target_roll = 0.0
-
-# Tolerans değeri (örneğin, -0.1 ile +0.1 arasındaki değerlerde motorlar çalışmayacak)
-tolerance = 0.5
-
-# Temel hız (duty cycle = 5.5) - Daha düşük temel hız
-base_speed = 6.0
-time.sleep(5)
-
-def map_value(value, in_min, in_max, out_min, out_max):
-    """
-    Bir değeri bir aralıktan başka bir aralığa dönüştürür.
-    Örneğin, -50 ile +50 arasındaki değeri 5-10 arasına dönüştürür.
-    """
-    return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+# Servo açılarını sınırla (örneğin, 0-180 derece arası)
+def constrain_angle(angle):
+    return max(0, min(180, angle))
 
 try:
     while True:
         # Sensör verilerini güvenli bir şekilde oku
         with BNO055.data_lock:
-            current_roll = BNO055.roll
+            current_pitch = BNO055.pitch
 
-        # Eğer açı tolerans aralığında ise motorları durdur
-        if -tolerance <= current_roll <= tolerance:
-            for pwm in pwm_motor_right + pwm_motor_left:
-                pwm.ChangeDutyCycle(5)  # Minimum sinyal
-            time.sleep(0.01)
-            continue
+        # PID çıktısını hesapla (sadece pitch için)
+        pitch_output = pid_pitch.compute(target_pitch, current_pitch)
 
-        # PID çıktısını hesapla (sadece roll için)
-        roll_output = pid_roll.compute(target_roll, current_roll)
+        # Servo açılarını hesapla
+        servo1_angle = 90 + pitch_output  # 90: merkez konumu
+        servo2_angle = 90 - pitch_output
 
-        # Temel hız ve PID çıktısını ekleyerek motor hızlarını hesapla
-        motor_speed_right = [base_speed + roll_output for _ in motor_pwm_right]
-        motor_speed_left = [base_speed - roll_output for _ in motor_pwm_left]
+        # Servo açılarını sınırla
+        servo1_angle = constrain_angle(servo1_angle)
+        servo2_angle = constrain_angle(servo2_angle)
 
-        # Motor hızlarını 5-10 aralığına sınırla
-        motor_speed_right = [max(5, min(10, speed)) for speed in motor_speed_right]
-        motor_speed_left = [max(5, min(10, speed)) for speed in motor_speed_left]
+        # Servo açılarını PWM duty cycle'a dönüştür (0-100 arası)
+        # Servo PWM duty cycle genellikle 2.5% (0 derece) ile 12.5% (180 derece) arasındadır.
+        # Bu nedenle, açıyı duty cycle'a dönüştürmek için:
+        duty_cycle_servo1 = 2.5 + (servo1_angle / 180.0) * 10.0
+        duty_cycle_servo2 = 2.5 + (servo2_angle / 180.0) * 10.0
 
         # PWM sinyallerini güncelle
-        for pwm, speed in zip(pwm_motor_right, motor_speed_right):
-            pwm.ChangeDutyCycle(speed)
-        for pwm, speed in zip(pwm_motor_left, motor_speed_left):
-            pwm.ChangeDutyCycle(speed)
+        pwm_servo1.ChangeDutyCycle(duty_cycle_servo1)
+        pwm_servo2.ChangeDutyCycle(duty_cycle_servo2)
 
         time.sleep(0.01)  # 10 ms'de bir güncelle
 
 except KeyboardInterrupt:
-    # Program sonlandırıldığında motorları durdur
-    for pwm in pwm_motor_right + pwm_motor_left:
-        pwm.ChangeDutyCycle(5)  # Minimum sinyal
-    time.sleep(1)
-    for pwm in pwm_motor_right + pwm_motor_left:
-        pwm.stop()
+    # Program sonlandırıldığında servoları durdur
+    pwm_servo1.stop()
+    pwm_servo2.stop()
     GPIO.cleanup()
