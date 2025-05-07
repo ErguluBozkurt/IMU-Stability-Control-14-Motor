@@ -1,6 +1,6 @@
 # ESC Kontrol Sistemi (Raspberry Pi + BNO055 Sensörü)
 
-Bu proje, **Raspberry Pi** ve **BNO055 IMU sensörü** kullanarak 14 motoru dengelemek için **PID kontrolü** uygulayan, ESC kalibrasyonu ve silahlandırma (arming) işlemlerini içeren bir sistemdir. Proje, motorları dengede tutmayı, ESC'leri kalibre etmeyi ve silahlandırmayı amaçlayan dört ana Python dosyasından oluşmaktadır:
+Bu proje, **Raspberry Pi** ve **BNO055 IMU sensörü** kullanarak 14 motor ile hava aracını dengeli bir şekilde hareket etmek için **PID kontrolü** uygulayan, ESC kalibrasyonu ve silahlandırma (arming) işlemlerini içeren bir sistemdir. Proje, motorları dengede tutmayı, ESC'leri kalibre etmeyi ve silahlandırmayı amaçlayan dört ana Python dosyasından oluşmaktadır:
 
 - **`controller.py`**
 - **`calibrate.py`**
