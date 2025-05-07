@@ -21,14 +21,20 @@ class PIDController:
 
 # GPIO ve PWM Ayarları
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(14, GPIO.OUT)  # Motor 1 PWM sinyali
-GPIO.setup(15, GPIO.OUT)  # Motor 2 PWM sinyali
 
-pwm_motor1 = GPIO.PWM(14, 50)  # 50 Hz PWM frekansı
-pwm_motor2 = GPIO.PWM(15, 50)
+# Sağdaki motorlar için PWM pinleri
+motor_pwm_right = [14, 15, 18, 23, 24, 25, 8]  # Sağda 7 motor için pinler
 
-pwm_motor1.start(5)  # Minimum sinyal (duty cycle = 5)
-pwm_motor2.start(5)  # Minimum sinyal (duty cycle = 5)
+# Soldaki motorlar için PWM pinleri
+motor_pwm_left = [7, 9, 10, 11, 12, 13, 16]  # Solda 7 motor için pinler
+
+# Motorlar için PWM nesneleri
+pwm_motor_right = [GPIO.PWM(pin, 50) for pin in motor_pwm_right]
+pwm_motor_left = [GPIO.PWM(pin, 50) for pin in motor_pwm_left]
+
+# PWM motorları başlat
+for pwm in pwm_motor_right + pwm_motor_left:
+    pwm.start(5)  # Minimum sinyal (duty cycle = 5)
 
 # PID parametreleri (sadece roll için). Deneme yanılma ile değiştirilecek.
 pid_roll = PIDController(kp=1.3, ki=0.001, kd=0.01)
@@ -42,6 +48,7 @@ tolerance = 0.5
 # Temel hız (duty cycle = 5.5) - Daha düşük temel hız
 base_speed = 6.0
 time.sleep(5)
+
 def map_value(value, in_min, in_max, out_min, out_max):
     """
     Bir değeri bir aralıktan başka bir aralığa dönüştürür.
@@ -57,8 +64,8 @@ try:
 
         # Eğer açı tolerans aralığında ise motorları durdur
         if -tolerance <= current_roll <= tolerance:
-            pwm_motor1.ChangeDutyCycle(5)  # Minimum sinyal
-            pwm_motor2.ChangeDutyCycle(5)
+            for pwm in pwm_motor_right + pwm_motor_left:
+                pwm.ChangeDutyCycle(5)  # Minimum sinyal
             time.sleep(0.01)
             continue
 
@@ -66,25 +73,26 @@ try:
         roll_output = pid_roll.compute(target_roll, current_roll)
 
         # Temel hız ve PID çıktısını ekleyerek motor hızlarını hesapla
-        motor1_speed = base_speed - roll_output
-        motor2_speed = base_speed + roll_output
+        motor_speed_right = [base_speed + roll_output for _ in motor_pwm_right]
+        motor_speed_left = [base_speed - roll_output for _ in motor_pwm_left]
 
         # Motor hızlarını 5-10 aralığına sınırla
-        motor1_speed = max(5, min(10, motor1_speed))
-        motor2_speed = max(5, min(10, motor2_speed))
+        motor_speed_right = [max(5, min(10, speed)) for speed in motor_speed_right]
+        motor_speed_left = [max(5, min(10, speed)) for speed in motor_speed_left]
 
         # PWM sinyallerini güncelle
-        pwm_motor1.ChangeDutyCycle(motor1_speed)
-        pwm_motor2.ChangeDutyCycle(motor2_speed)
+        for pwm, speed in zip(pwm_motor_right, motor_speed_right):
+            pwm.ChangeDutyCycle(speed)
+        for pwm, speed in zip(pwm_motor_left, motor_speed_left):
+            pwm.ChangeDutyCycle(speed)
 
         time.sleep(0.01)  # 10 ms'de bir güncelle
 
 except KeyboardInterrupt:
     # Program sonlandırıldığında motorları durdur
-    pwm_motor1.ChangeDutyCycle(5)  # Minimum sinyal
-    pwm_motor2.ChangeDutyCycle(5)
+    for pwm in pwm_motor_right + pwm_motor_left:
+        pwm.ChangeDutyCycle(5)  # Minimum sinyal
     time.sleep(1)
-    pwm_motor1.stop()
-    pwm_motor2.stop()
+    for pwm in pwm_motor_right + pwm_motor_left:
+        pwm.stop()
     GPIO.cleanup()
-    
