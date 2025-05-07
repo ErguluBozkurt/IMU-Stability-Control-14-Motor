@@ -1,0 +1,4 @@
+RPi.GPIO
+adafruit-circuitpython-bno055
+board
+busio
