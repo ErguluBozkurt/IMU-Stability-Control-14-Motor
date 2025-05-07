@@ -3,15 +3,20 @@ import RPi.GPIO as GPIO
 
 # GPIO Ayarları
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(14, GPIO.OUT)  # Motor 1 PWM sinyali
-GPIO.setup(15, GPIO.OUT)  # Motor 2 PWM sinyali
 
-# PWM Ayarları
-pwm_motor1 = GPIO.PWM(14, 50)  # 50 Hz PWM frekansı
-pwm_motor2 = GPIO.PWM(15, 50)
+# Sağdaki motorlar için PWM pinleri
+motor_pwm_right = [14, 15, 18, 23, 24, 25, 8]  # Sağda 7 motor için pinler
 
-pwm_motor1.start(0)
-pwm_motor2.start(0)
+# Soldaki motorlar için PWM pinleri
+motor_pwm_left = [7, 9, 10, 11, 12, 13, 16]  # Solda 7 motor için pinler
+
+# Motorlar için PWM nesneleri
+pwm_motor_right = [GPIO.PWM(pin, 50) for pin in motor_pwm_right]
+pwm_motor_left = [GPIO.PWM(pin, 50) for pin in motor_pwm_left]
+
+# PWM motorları başlat
+for pwm in pwm_motor_right + pwm_motor_left:
+    pwm.start(0)  # Başlangıçta 0 duty cycle
 
 def arm_esc(pwm_motor, motor_name):
     print(f"{motor_name} silahlanma işlemi başlatılıyor...")
@@ -24,17 +29,19 @@ def arm_esc(pwm_motor, motor_name):
     print(f"{motor_name} silahlanma işlemi tamamlandı.")
 
 try:
-    # Motor 1'i silahlandır
-    arm_esc(pwm_motor1, "Motor 1")
-    
-    # Motor 2'yi silahlandır
-    arm_esc(pwm_motor2, "Motor 2")
+    # Sağdaki motorları silahlandır
+    for i, pwm_motor in enumerate(pwm_motor_right):
+        arm_esc(pwm_motor, f"Sağ Motor {i+1}")
+
+    # Soldaki motorları silahlandır
+    for i, pwm_motor in enumerate(pwm_motor_left):
+        arm_esc(pwm_motor, f"Sol Motor {i+1}")
 
 except KeyboardInterrupt:
     print("Silahlanma işlemi durduruldu.")
 
 finally:
     # PWM ve GPIO temizleme
-    pwm_motor1.stop()
-    pwm_motor2.stop()
+    for pwm in pwm_motor_right + pwm_motor_left:
+        pwm.stop()
     GPIO.cleanup()
